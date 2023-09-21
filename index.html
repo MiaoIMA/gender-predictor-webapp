@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Name to Gender Predictor</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <style>
+    .title {
+      font-size: 32px; /* 设置字体大小 */
+      font-weight: bold; /* 设置字体为加粗 */
+      color: #333; /* 设置字体颜色 */
+      margin-bottom: 20px; /* 设置标题下方的边距，以避免与其他元素过于紧密 */
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: #f4f4f4;
+      color: #555;
+    }
+    h1 {
+      font-size: 20px;
+      margin-bottom: 20px;
+      color: #333;
+    }
+    .result-container, .description-container {
+      width: 300px;
+      position: relative;
+      text-align: left;
+    }
+    h2, h3 {
+      font-size: 16px;
+      margin-top: 20px;
+      color: #666;
+      margin-left: 10px;
+    }
+    .input-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 20px;
+      width: 300px;
+    }
+    .input-container input {
+      height: 30px;
+      font-size: 14px;
+      flex-grow: 1;
+      margin-right: 10px;
+    }
+    button {
+      height: 30px;
+      padding: 5px 10px;
+      background-color: #28a745;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #218838;
+    }
+    span#result, span#probability {
+      color: #007BFF;
+    }
+    .description-container {
+      width: 800px; /* 设置宽度为原来的两倍 */
+      margin-top: 50px;
+      font-size: 12px;
+      color: #666;
+      text-align: left; /* 设置文字左对齐 */
+    }
+    .description-container h4 {
+      font-weight: bold; /* 加粗标题 */
+      margin-top: 18px;
+    }
+	footer {
+      position: fixed;
+      left: 0;
+      bottom: 0;
+      width: 100%;
+      background-color: #f1f1f1;
+      color: #555;
+      text-align: center;
+      padding: 8px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1 class="title">Geschlechts Prognose durch chinesische Vornamen</h1>
+
+  <h1></h1>
+  <div class="input-container">
+    <input type="text" id="vorname" placeholder="Vorname" onkeydown="checkForEnter(event)">
+    <button onclick="predict()">Predict</button>
+  </div>
+  <div class="result-container">
+    <h2>Result: <span id="result"></span></h2>
+    <h3>Probability: <span id="probability"></span></h3>
+  </div>
+  <div class="description-container">
+    <h4>Modellbeschreibung und -analyse</h4>
+    <p>Dieses Modell verwendet eine Struktur des Long Short-Term Memory Netzwerks (LSTM) und erreicht durch tiefes Lernen und Training an 1.145.011 chinesischen Namen die Geschlechtsklassifikation basierend auf Namen. In den Experimenten erzielt das Modell eine Genauigkeit von 88.2% und zeigt gute Leistung.</p>
+	<p>Die Komplexität der chinesischen Sprache legt jedoch nahe, dass die Ableitung des Geschlechts allein auf der Grundlage der phonetischen Transkription (Pinyin) von Namen seine inhärenten Herausforderungen hat. Im Chinesischen kann ein einzelnes Pinyin vier verschiedene Töne haben und auf mehrere oder Dutzende chinesische Zeichen abgebildet werden.</p>
+    <p>Zum Beispiel kann „wei“ den Zeichen „伟“ oder „薇“ entsprechen, wobei „伟“ häufiger in männlichen Namen vorkommt, während „薇“ häufiger in weiblichen Namen zu finden ist. Trotz dieser Herausforderungen behält das Modell eine hohe Genauigkeit bei, insbesondere bei Namen, die aus zwei Zeichen bestehen, und zeigt eine überlegene Leistung im Vergleich zu Ein-Zeichen-Namen. </p>
+	<h4>Modellleistung und -einschränkungen</h4>
+    <p>Dieses Modell kann in den meisten Fällen eine genaue Geschlechtsbestimmung bieten, aber aufgrund der inhärenten Eigenschaften und Vielfalt der chinesischen Sprache haben die Vorhersagen des Modells immer noch einen gewissen Grad an Unsicherheit und Fehler. Insbesondere bei Homophonen oder Polyphonen kann die Vorhersage des Modells beeinträchtigt werden. Da das Modell auf Pinyin basiert, lernt und prognostiziert es, kann es jedoch nicht die in chinesischen Zeichen enthaltenen semantischen und kulturellen Informationen genau erfassen.</p>
+	<p>Zusammenfassend zeigt dieses Modell in der praktischen Anwendung eine ausgezeichnete Leistung und bietet den Benutzern schnelle und genaue Geschlechtsvorhersagen. Benutzer sollten jedoch über die Einschränkungen des Modells informiert sein und seine Vorhersagen in Verbindung mit den tatsächlichen Umständen berücksichtigen.</p>
+	<footer>
+    <p>Autor: Zhenwei | Datum: 09.2023 | Version: V1.0 </p>
+  </footer>
+  </div>
+
+  <script>
+    let model;
+   
+    function checkForEnter(event) {
+      if (event.keyCode === 13) {
+        predict();
+      }
+    }
+    // 加载模型
+    async function loadModel() {
+      model = await tf.loadLayersModel('js_model/model.json'); // 使用相对路径
+    }
+    loadModel();
+
+    // 预测函数
+    async function predict() {
+      const vorname = document.getElementById('vorname').value;
+
+      // 数据预处理，转换为模型需要的格式
+      const vorname_list = Array.from(vorname.toLowerCase()).map(char => char.charCodeAt(0));
+      const paddedList = vorname_list.concat(new Array(15 - vorname_list.length).fill(0));
+      const vorname_tensor = tf.tensor2d([paddedList]);
+
+      // 执行预测
+      const prediction = await model.predict(vorname_tensor).array();
+      const probability = parseFloat(prediction[0][0] * 100);
+
+      const result = prediction > 0.5 ? 'männlich/male' : 'weiblich/female ';
+
+      // 显示结果和概率
+      document.getElementById('result').textContent = result;
+      document.getElementById('probability').textContent = `${probability.toFixed(2)}%`;
+    }
+  </script>
+
+</body>
+</html>
